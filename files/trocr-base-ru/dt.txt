@@ -1,1 +1,1 @@
-You need to install OCR from the link: --
+You need to install OCR from the link: https://huggingface.co/raxtemur/trocr-base-ru/tree/main
