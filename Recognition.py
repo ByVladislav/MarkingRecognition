@@ -1,23 +1,34 @@
 from transformers import TrOCRProcessor, VisionEncoderDecoderModel
+import cv2, torch, re, time, easyocr, os, random
 from ultralytics import YOLO
-import cv2, torch, re, time
 from PIL import Image
 import numpy as np
 
 
+# Класс для нахождения и расшифровки маркировки
 class Record:
-    def __init__(self, pathModel = None, pathOCR = None):
+    # Инициализатор
+    def __init__(self, pathModel=None, pathOCR=None):
+        # Подключаем модель поиска рамки
+        if pathModel is not None:
+            self.model = YOLO(pathModel)
+        else:
+            self.modelDetect = YOLO(r"files/model.pt")
 
-        if pathModel != None: self.model = YOLO(pathModel)
-        else: self.modelDetect = YOLO(r"files/model.pt")
-
-        if pathOCR != None:
+        # Подключаем модель распознавания текста
+        if pathOCR is not None:
             self.processor = TrOCRProcessor.from_pretrained(pathOCR)
-            self.modelRecord = VisionEncoderDecoderModel.from_pretrained(pathOCR)
+            self.modelRecordBase_ru = VisionEncoderDecoderModel.from_pretrained(pathOCR)
         else:
             self.processor = TrOCRProcessor.from_pretrained(r"files/trocr-base-ru")
-            self.modelRecord = VisionEncoderDecoderModel.from_pretrained(r"files/trocr-base-ru")
+            self.modelRecordBase_ru = VisionEncoderDecoderModel.from_pretrained(r"files/trocr-base-ru")
 
+        # Определяем устройство
+        self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+        print("Using device:", self.device)
+        self.modelRecordBase_ru.to(self.device)
+
+        self.modelRecordEasy_ocr = easyocr.Reader(['ru'])
 
         # Настройка параметров
         self.top_percent = 0.45
@@ -25,6 +36,7 @@ class Record:
         self.height = 75
 
 
+    # Поиск маркировки и выделение зоны интереса
     def MarkerDetect(self, input):
 
         # Переводим в серый и размываем
@@ -77,20 +89,18 @@ class Record:
 
         return True, Part13
 
-
-    def MarkerRecord(self, input):
-
+    # Расшифровка маркировки
+    def MarkerRecordBase_ru(self, input):
         # Переводим картинку в формат RGB
         Part1 = cv2.cvtColor(input, cv2.COLOR_BGR2RGB)
         Part2 = Image.fromarray(Part1)
 
-
         # Подготавливаем картинку к обработке
-        Part3 = self.processor(images=Part2, return_tensors="pt").pixel_values
+        Part3 = self.processor(images=Part2, return_tensors="pt").pixel_values.to(self.device)
 
         # Распознаём текст
         with torch.no_grad():
-            generated_ids = self.modelRecord.generate(
+            generated_ids = self.modelRecordBase_ru.generate(
                 Part3,
                 max_length=128,
                 num_beams=8,
@@ -104,10 +114,12 @@ class Record:
         return True, {"text": text, "marker": marker}
 
 
+    # Структурирование текста
     def StrictText(self, text):
 
         # Маска для структурирования
         text = re.sub(r"[^A-Za-zА-Яа-я0-9]", "", text).upper()
+
 
         # Функция струтурирования
         def stricting(text, check, count, offset):
@@ -130,17 +142,33 @@ class Record:
         return f"{part1} {part2} {part3}{part4}{part5} {part6}"
 
 
-    def __call__(self, input):
+    def MarkerRecordEasy_ocr(self, input):
+
+        name = f"temp_{random.randint(10000,99999)}.jpg"
+
+        cv2.imwrite(name, input)
+
+        result = self.modelRecordEasy_ocr.readtext(name, detail=0)
+
+        os.remove(name)
+
+        return {"text": result, "marker": result}
+
+    # Функция обработчик
+    def __call__(self, input, numModel):
 
         # Запоминаем время начала обработки
         TimePoint = time.time()
 
         # Ищем и подготавливаем маркировку
         status, zone = self.MarkerDetect(input)
-        if status == False: return False, zone
+        if status == False: return False, zone, None, None, None
 
         # Распознаём маркировку
-        status, data = self.MarkerRecord(zone)
-        if status == False: return False, data
+        if numModel == 0:
+            status, data = self.MarkerRecordBase_ru(zone)
+            if status == False: return False, data, None, None, None
+        elif numModel == 1:
+            data = self.MarkerRecordEasy_ocr(zone)
 
-        return zone, data["text"], data["marker"], int(time.time()-TimePoint)
+        return True, zone, data["text"], data["marker"], round(time.time()-TimePoint, 3)

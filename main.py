@@ -4,13 +4,14 @@ import cv2
 # Инициализируем декодер
 record = Record()
 
-
 # Открываем изображение
 img = cv2.imread("img.jpg")
 
 # Обрабатываем маркировку
-_, text, marker, timer = record(img)
+status, mess, text, marker, timer = record(img, 0)
 
 # Выводим результат
-print(marker)
-print(timer, " сек.")
+if status:
+    print(marker)
+    print(timer, " сек.")
+else: print(mess)
