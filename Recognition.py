@@ -36,6 +36,8 @@ class Record:
         self.bottom_percent = bottom
         self.height = 75
 
+        self.finding = list()
+
 
     # Поиск маркировки и выделение зоны интереса
     def MarkerDetectYOLO(self, gray, color):
@@ -138,111 +140,144 @@ class Record:
 
     # Структурирование текста
     def StrictText(self, text, structure):
-
-        finding = []
+        self.finding = list()
 
         # Удаляем все пробелы из входного текста для унификации
         clean_text = re.sub(r'\s+', '', text)
+        original_text = clean_text.upper()  # Сохраняем оригинал для логов
 
         # Проверяем наличие обязательных частей
-        required_parts = [structure["company"], structure["factory"]]
+        required_parts = [
+            ("company", structure["company"]),
+            ("factory", structure["factory"])
+        ]
 
-        # Проверяем, есть ли обязательные части в тексте
-        for part in required_parts:
+        # Проверяем обязательные части
+        for part_name, part in required_parts:
             if part not in clean_text:
-                # Если обязательная часть отсутствует, пытаемся найти похожую
-                matches = self.find_similar_substring(clean_text, part)
+                matches = self._find_similar_substring(clean_text, part)
                 if matches:
-                    # Заменяем наиболее похожую часть на правильную
                     best_match = max(matches, key=lambda x: x[1])
-                    clean_text = clean_text.replace(best_match[0], part)
-                    finding.append(f"Correction {part}")
+                    if best_match[0] != part:
+                        self._log_correction(part_name, best_match[0], part)
+                        clean_text = clean_text.replace(best_match[0], part)
                 else:
-                    # Если похожей части нет, вставляем правильную
+                    self._log_addition(part_name, part)
                     clean_text = part + clean_text
-                    finding.append(f"Adding {part}")
 
         # Ищем марку стали
-        num = "(.{2,10})"
-        steel_pattern = eval(f"r'{structure["factory"]}{num}'")
-        steel_match = re.search(steel_pattern, clean_text)
+        steel_pattern = re.compile(rf'{re.escape(structure["factory"])}(.{{2,10}})')
+        steel_match = steel_pattern.search(clean_text)
 
         if steel_match:
             steel_part = steel_match.group(1)
-            # Оставляем только допустимые символы в марке стали
             cleaned_steel = re.sub(r'[^a-zA-Zа-яА-Я0-9-]', '', steel_part)
-            # Проверяем, соответствует ли очищенная марка стали допустимым значениям
-            valid_steel = self.validate_steel_grade(cleaned_steel, structure["steel"])
+            valid_steel = self._validate_steel_grade(cleaned_steel, structure["steel"])
+
+            if valid_steel != cleaned_steel:
+                self._log_correction("steel", cleaned_steel, valid_steel)
         else:
             valid_steel = structure["steel"]
-            finding.append(f"Adding {structure["steel"]}")
+            self._log_addition("steel", valid_steel)
 
         # Ищем номер трубы
-        pipe_number = self.find_pipe_number(clean_text)
-        if pipe_number == "eeeee": return False, {"error_code":"002", "error":"Unable to find pipe number"}, None
+        pipe_number = self._find_pipe_number(clean_text, structure["number"])
+        if pipe_number == None:
+            return False, {"error_code": "002", "error": "Unable to find pipe number"}, None
 
         # Собираем корректную маркировку
-        corrected = f"{structure["company"]} {structure["factory"]} {valid_steel} {pipe_number}"
+        corrected = f"{structure['company']} {structure['factory']} {valid_steel} {pipe_number}"
 
-        # Обработка замен в тексте
-        mess = dict()
-        if finding != list(): mess = {"error_code":"003", "error": finding}
+        # Формируем сообщение об изменениях
+        mess = {"error_code": "003", "error": self.finding} if self.finding else {}
 
         return True, mess, corrected
 
-    # Поиск целевого значения в тексте
-    def find_similar_substring(self, text, target):
+    # Логирует добавление отсутствующей части
+    def _log_addition(self, part_name, added):
+        self.finding.append(f"Adding {part_name}: {added}")
+
+    # Находит подстроки в тексте, похожие на target
+    def _find_similar_substring(self, text, target):
         matches = []
         target_len = len(target)
 
-        # Проверяем все подстроки аналогичной длины
         for i in range(len(text) - target_len + 1):
             substring = text[i:i + target_len]
             similarity = SequenceMatcher(None, substring, target).ratio()
-            if similarity > 0.6:  # Порог схожести
+            if similarity > 0.6:
                 matches.append((substring, similarity))
 
         return matches
 
-    # Проверка и корректировка марки стали
-    def validate_steel_grade(self, steel_text, default_grade):
+    # Проверяет и корректирует марку стали
+    def _validate_steel_grade(self, steel_text, default_grade):
+        """Проверяет и корректирует марку стали, отделяя ее от номера трубы"""
+        # Удаляем все пробелы и недопустимые символы
+        steel_text = re.sub(r'[^a-zA-Zа-яА-Я0-9-]', '', steel_text)
 
-        steel_text = steel_text.replace(' ', '')
+        # Отделяем марку стали от возможного номера трубы
+        steel_part = self._extract_steel_part(steel_text)
+
         valid_grades = [
             '30Г2', '20Mn5', '20MnB4', '20MnCr5',
             '20MnCrS5', '20MnMoNi4-5', '36NiCrMo16'
         ]
 
         # Проверяем точное соответствие
-        if steel_text in valid_grades:
-            return steel_text
+        if steel_part in valid_grades:
+            return steel_part
 
         # Ищем похожие марки
         for grade in valid_grades:
-            if SequenceMatcher(None, steel_text, grade).ratio() > 0.7:
+            if SequenceMatcher(None, steel_part, grade).ratio() > 0.7:
                 return grade
 
-        # Если ничего не найдено, возвращаем марку по умолчанию
         return default_grade
 
-    # Поиск 5-значного номера трубы
-    def find_pipe_number(self, text):
+    # Извлекает часть текста, которая может быть маркой стали
+    def _extract_steel_part(self, text):
 
+        # Паттерны для разных типов марок стали
+        patterns = [
+            r'^\d{2}[A-Za-z]+[A-Za-z0-9-]+',  # Для 20Mn5, 20MnB4 и т.д.
+            r'^\d{2}[А-Яа-я]+\d*',  # Для 30Г2 и подобных
+            r'^\d{2}[A-Za-z]+[A-Za-z0-9-]+',  # Для 36NiCrMo16
+        ]
+
+        for pattern in patterns:
+            match = re.match(pattern, text)
+            if match:
+                return match.group()
+
+        # Если ни один паттерн не подошел, возвращаем первые 4 символа (как эвристику)
+        return text[:4]
+
+    # Логирует исправление части текста
+    def _log_correction(self, part_name, original, corrected):
+        if part_name == "steel":
+            # Для стали берем только марку без номера
+            steel_only = self._extract_steel_part(original)
+            self.finding.append(f"Correction {part_name}: {steel_only}->{corrected}")
+        else:
+            self.finding.append(f"Correction {part_name}: {original}->{corrected}")
+
+    # Ищет 5-значный номер трубы
+    def _find_pipe_number(self, text, size):
         # Сначала ищем в конце строки
-        end_match = re.search(r'(\d{5})\D*$', text)
+        end_match = re.search(r'(\d{{{size}}})\D*$'.format(size=size), text)
         if end_match:
             return end_match.group(1)
 
         # Если не нашли в конце, ищем в любом месте
-        any_match = re.search(r'(\d{5})', text)
+        any_match = re.search(r'(\d{{{size}}})'.format(size=size), text)
         if any_match:
             return any_match.group(1)
 
-        # Если номер не найден, возвращаем заглушку
-        return 'eeeee'
+        return None
 
     # Функция обработчик
-    def __call__(self, input, numModel, structure={"company": "ТМК", "factory": "ЧТПЗ", "steel": "30Г2"}):
+    def __call__(self, input, numModel, structure={"company": "ТМК", "factory": "ЧТПЗ", "steel": "30Г2", "number": 5}):
 
         # Запоминаем время начала обработки
         TimePoint = time.time()

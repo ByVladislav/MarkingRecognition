@@ -44,16 +44,22 @@ try:
             break
 
         # Обрабатываем маркировку
-        status, mess, _, marker, timer, pred, corrected = record(frame, 1)
+        status, mess, text, marker, timer, pred, corrected = record(frame, 1)
         if status == False:
             print("Error: ", mess)
+            out = ImgOnBoard(pred)
         else:
             print(); print(); print()
             print("Найдено ", marker)
             print("Распознано за ", timer, " сек.")
-            if corrected != dict(): print("Были выпаленный замены: ", corrected)
+            if corrected != dict():
+                print("Сырой текст: ", text)
+                print("Были выпаленный замены: ", corrected)
+                zone = cv2.cvtColor(mess, cv2.COLOR_GRAY2BGR)
+                out = ImgOnBoard(zone)
+            else:
+                out = ImgOnBoard(pred)
 
-        out = ImgOnBoard(pred)
 
         frame_rgb = cv2.cvtColor(out, cv2.COLOR_BGR2RGB)
         img_display.set_data(frame_rgb)
