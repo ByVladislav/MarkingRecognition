@@ -9,7 +9,7 @@ import numpy as np
 # Класс для нахождения и расшифровки маркировки
 class Record:
     # Инициализатор
-    def __init__(self, pathModel=None, pathOCR=None):
+    def __init__(self, top, bottom, pathModel=None, pathOCR=None):
         # Подключаем модель поиска рамки
         if pathModel is not None:
             self.model = YOLO(pathModel)
@@ -32,63 +32,51 @@ class Record:
         self.modelRecordEasy_ocr = easyocr.Reader(['ru'])
 
         # Настройка параметров
-        self.top_percent = 0.45
-        self.bottom_percent = 0.35
+        self.top_percent = top
+        self.bottom_percent = bottom
         self.height = 75
 
 
     # Поиск маркировки и выделение зоны интереса
-    def MarkerDetectYOLO(self, input):
-
-        # Переводим в серый и размываем
-        Part1 = cv2.cvtColor(input, cv2.COLOR_BGR2GRAY)
-        Part2 = cv2.GaussianBlur(Part1, (3, 3), 0)
-
-        # Обрезаем по зоне интереса
-        height, width = Part2.shape[:2]
-        top_crop = int(height * self.top_percent)
-        bottom_crop = int(height * self.bottom_percent)
-
-        Part3 = Part2[top_crop:height - bottom_crop, 0:width]
-        Part4 = input[top_crop:height - bottom_crop, 0:width]
+    def MarkerDetectYOLO(self, gray, color):
 
         # Находим маркировку на трубе
-        results = self.modelDetect(Part4)
+        results = self.modelDetect(color)
 
         if len(results[0]) == 0: return False, {"error_code":"001", "error":"Not detecting marking"}
 
         x1, y1, x2, y2 = map(int, results[0].boxes.xyxy[0])
-        Part5 = Part3[y1:y2, x1:x2]
+        Part1 = gray[y1:y2, x1:x2]
 
-        Part6 = cv2.rotate(Part5, cv2.ROTATE_180)
+        Part2 = cv2.rotate(Part1, cv2.ROTATE_180)
 
         # Удаляем шум
         kernel = np.ones((1, 1), np.uint8)
-        Part7 = cv2.morphologyEx(Part6, cv2.MORPH_OPEN, kernel)
+        Part3 = cv2.morphologyEx(Part2, cv2.MORPH_OPEN, kernel)
 
         # Убираем тени
-        background = cv2.medianBlur(Part7, 21)
-        Part8 = cv2.addWeighted(Part7, 1, background, -0.7, 0)
+        background = cv2.medianBlur(Part3, 21)
+        Part4 = cv2.addWeighted(Part3, 1, background, -0.7, 0)
 
         # Проводим бинаризацию
-        _, Part9 = cv2.threshold(Part8, 200, 255, cv2.THRESH_BINARY | cv2.THRESH_OTSU)
+        _, Part5 = cv2.threshold(Part4, 200, 255, cv2.THRESH_BINARY | cv2.THRESH_OTSU)
 
         # Размываем, чтобы сгладить бинаризацию
-        Part10 = cv2.blur(Part9, (5, 5))
+        Part6 = cv2.blur(Part5, (5, 5))
 
         # Уменьшаем яркость
-        Part11 = cv2.subtract(Part10, 40)
+        Part7 = cv2.subtract(Part6, 40)
 
         # Уменьшаем картинку для сглаживания бинаризации
-        h, w = Part11.shape[:2]
+        h, w = Part7.shape[:2]
         new_width = int((self.height / h) * w)
 
-        Part12 = cv2.resize(Part11, (new_width, self.height))
+        Part8 = cv2.resize(Part7, (new_width, self.height))
 
         # Инвертируем
-        Part13 = cv2.bitwise_not(Part12)
+        Part9 = cv2.bitwise_not(Part8)
 
-        return True, Part13
+        return True, Part9
 
     # Расшифровка маркировки base_ocr
     def MarkerRecordBase_ru(self, input):
@@ -131,6 +119,22 @@ class Record:
         os.remove(name)
 
         return text
+
+    def CropArea(self, input):
+
+        # Переводим в серый и размываем
+        Part1 = cv2.cvtColor(input, cv2.COLOR_BGR2GRAY)
+        Part2 = cv2.GaussianBlur(Part1, (3, 3), 0)
+
+        # Обрезаем по зоне интереса
+        height, width = Part2.shape[:2]
+        top_crop = int(height * self.top_percent)
+        bottom_crop = int(height * self.bottom_percent)
+
+        Part3 = Part2[top_crop:height - bottom_crop, 0:width]
+        Part4 = input[top_crop:height - bottom_crop, 0:width]
+
+        return Part3, Part4
 
     # Структурирование текста
     def StrictText(self, text, structure):
@@ -234,19 +238,22 @@ class Record:
         # Запоминаем время начала обработки
         TimePoint = time.time()
 
+        # Оброезаем картинку
+        gray, color = self.CropArea(input)
+
         # Ищем и подготавливаем маркировку
-        status, zone = self.MarkerDetectYOLO(input)
-        if status == False: return False, zone, None, None, None
+        status, zone = self.MarkerDetectYOLO(gray, color)
+        if status == False: return False, zone, None, None, None, color
 
         # Распознаём маркировку
         if numModel == 0:
             status, text = self.MarkerRecordBase_ru(zone)
-            if status == False: return False, text, None, None, None
+            if status == False: return False, text, None, None, None, color
         elif numModel == 1:
             text = self.MarkerRecordEasy_ocr(zone)
 
         # Структурируем текст
         status, marker = self.StrictText(text, structure)
-        if status == False: return False, marker, None, None, None
+        if status == False: return False, marker, None, None, None, color
 
-        return True, zone, text, marker, round(time.time()-TimePoint, 3)
+        return True, zone, text, marker, round(time.time()-TimePoint, 3), color

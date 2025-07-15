@@ -28,7 +28,7 @@ def ImgOnBoard(input):
     return black_background
 
 
-record = Record()
+record = Record(0.4, 0.3)
 
 cap = cv2.VideoCapture(CameraIndex)
 plt.ion()  # Режим интерактивного обновления
@@ -44,17 +44,15 @@ try:
             break
 
         # Обрабатываем маркировку
-        status, mess, text, marker, timer = record(frame, 1)
+        status, mess, _, marker, timer, pred = record(frame, 1)
         if status == False:
             print("Error: ", mess)
-            out = ImgOnBoard(frame)
         else:
             print(); print(); print()
             print("Найдено ", marker)
             print("Распознано за ", timer, " сек.")
 
-            zone = cv2.cvtColor(mess, cv2.COLOR_GRAY2BGR)
-            out = ImgOnBoard(zone)
+        out = ImgOnBoard(pred)
 
         frame_rgb = cv2.cvtColor(out, cv2.COLOR_BGR2RGB)
         img_display.set_data(frame_rgb)
