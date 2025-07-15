@@ -105,7 +105,7 @@ pip install -r requirements.txt
 
 ---
 
-В файле **MarkingRecognition\.venv\Lib\site-packages\easyocr\utils.py** в строчке 582 исправить ```maximum_y,maximum_x = img.shape``` на ```maximum_y,maximum_x, _ = img.shape```
+В файле **MarkingRecognition\\.venv\Lib\site-packages\easyocr\utils.py** в строчке 582 исправить ```maximum_y,maximum_x = img.shape``` на ```maximum_y,maximum_x, _ = img.shape```
 
 ---
 
