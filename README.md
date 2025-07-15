@@ -42,6 +42,11 @@
 * pathModel - Путь до YOLO модели, изначально files/model v2.pt
 * pathOCR - Путь до base_ocr, изначально files/trocr-base-ru
 
+```
+record = Record(0.45, 0.35) # Сокращёное применение
+record = Record(0.45, 0.35, r"files/model v2.pt", r"files/trocr-base-ru") # Полное применение
+```
+
 ---
 
 Главная функция принимает:
