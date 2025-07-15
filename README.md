@@ -52,3 +52,9 @@
 git clone https://github.com/ByVladislav/MarkingRecognition.git
 cd MarkingRecognition
 pip install -r requirements.txt
+```
+
+---
+
+Установить trocr-base-ru, по путю MarkingRecognition/files/trocr-base-ru
+
