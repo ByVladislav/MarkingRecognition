@@ -139,6 +139,8 @@ class Record:
     # Структурирование текста
     def StrictText(self, text, structure):
 
+        finding = []
+
         # Удаляем все пробелы из входного текста для унификации
         clean_text = re.sub(r'\s+', '', text)
 
@@ -154,9 +156,11 @@ class Record:
                     # Заменяем наиболее похожую часть на правильную
                     best_match = max(matches, key=lambda x: x[1])
                     clean_text = clean_text.replace(best_match[0], part)
+                    finding.append(f"Correction {part}")
                 else:
                     # Если похожей части нет, вставляем правильную
                     clean_text = part + clean_text
+                    finding.append(f"Adding {part}")
 
         # Ищем марку стали
         num = "(.{2,10})"
@@ -171,15 +175,20 @@ class Record:
             valid_steel = self.validate_steel_grade(cleaned_steel, structure["steel"])
         else:
             valid_steel = structure["steel"]
+            finding.append(f"Adding {structure["steel"]}")
 
         # Ищем номер трубы
         pipe_number = self.find_pipe_number(clean_text)
-        if pipe_number == "eeeee": return False, {"error_code":"002", "error":"Unable to find pipe number"}
+        if pipe_number == "eeeee": return False, {"error_code":"002", "error":"Unable to find pipe number"}, None
 
         # Собираем корректную маркировку
         corrected = f"{structure["company"]} {structure["factory"]} {valid_steel} {pipe_number}"
 
-        return True, corrected
+        # Обработка замен в тексте
+        mess = dict()
+        if finding != list(): mess = {"error_code":"003", "error": finding}
+
+        return True, mess, corrected
 
     # Поиск целевого значения в тексте
     def find_similar_substring(self, text, target):
@@ -243,17 +252,17 @@ class Record:
 
         # Ищем и подготавливаем маркировку
         status, zone = self.MarkerDetectYOLO(gray, color)
-        if status == False: return False, zone, None, None, None, color
+        if status == False: return False, zone, None, None, None, color, None
 
         # Распознаём маркировку
         if numModel == 0:
             status, text = self.MarkerRecordBase_ru(zone)
-            if status == False: return False, text, None, None, None, color
+            if status == False: return False, text, None, None, None, color, None
         elif numModel == 1:
             text = self.MarkerRecordEasy_ocr(zone)
 
         # Структурируем текст
-        status, marker = self.StrictText(text, structure)
-        if status == False: return False, marker, None, None, None, color
+        status, mess, marker = self.StrictText(text, structure)
+        if status == False: return False, mess, None, None, None, color, None
 
-        return True, zone, text, marker, round(time.time()-TimePoint, 3), color
+        return True, zone, text, marker, round(time.time()-TimePoint, 3), color, mess

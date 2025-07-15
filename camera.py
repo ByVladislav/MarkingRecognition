@@ -44,13 +44,14 @@ try:
             break
 
         # Обрабатываем маркировку
-        status, mess, _, marker, timer, pred = record(frame, 1)
+        status, mess, _, marker, timer, pred, corrected = record(frame, 1)
         if status == False:
             print("Error: ", mess)
         else:
             print(); print(); print()
             print("Найдено ", marker)
             print("Распознано за ", timer, " сек.")
+            if corrected != dict(): print("Были выпаленный замены: ", corrected)
 
         out = ImgOnBoard(pred)
 
