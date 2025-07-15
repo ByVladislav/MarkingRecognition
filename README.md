@@ -49,6 +49,6 @@
 Чтобы запустить проект, выполните:
 
 ```bash
-git clone https://github.com/ваш-репозиторий.git
-cd ваш-репозиторий
+git clone https://github.com/ByVladislav/MarkingRecognition.git
+cd MarkingRecognition
 pip install -r requirements.txt
