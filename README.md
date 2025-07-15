@@ -41,6 +41,8 @@
 * pathModel - Путь до YOLO модели, изначально files/model v2.pt
 * pathOCR - Путь до base_ocr, изначально files/trocr-base-ru
 
+---
+
 Главная функция принимает:
 * input - Входное изображение
 * numModel - Номер модели 0: base_ru 1: easy_ocr 
