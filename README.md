@@ -54,6 +54,8 @@ record = Record(0.45, 0.35, r"files/model v2.pt", r"files/trocr-base-ru") # По
 * numModel - Номер модели 0: base_ru 1: easy_ocr 
 * structure - Описание того что должно присутствовать на маркировке, пример {"company": "ТМК", "factory": "ЧТПЗ", "steel": "30Г2"}
 
+```status, mess, text, marker, timer, pred, corrected = record(frame, 0)```
+
 ---
 
 <a id="example"></a>
