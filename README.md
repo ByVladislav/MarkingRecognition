@@ -9,6 +9,7 @@
 * [Использование](#use)
 * [Пример](#example)
 * [Установка](#install)
+* [Ошибки](#error)
 
 ---
 
@@ -105,5 +106,14 @@ pip install -r requirements.txt
 ---
 
 В файле **MarkingRecognition\.venv\Lib\site-packages\easyocr\utils.py** в строчке 582 исправить ```maximum_y,maximum_x = img.shape``` на ```maximum_y,maximum_x, _ = img.shape```
+
+---
+
+<a id="error"></a>
+# 📎 Обработка ошибок
+
+* ```{"error_code":"001", "error":"Not detecting marking"}``` - лиьтлди
+* ```{"error_code":"002", "error":"Unable to find pipe number"}``` - лиьтлди
+* ```{'error_code': '003', 'error': ['Adding ТМК', 'Correction ЧТПЗ']}``` - лиьтлди
 
 ---
