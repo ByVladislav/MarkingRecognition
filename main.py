@@ -12,6 +12,7 @@ status, mess, text, marker, timer = record(img, 0)
 
 # Выводим результат
 if status:
+    print(text)
     print(marker)
     print(timer, " сек.")
 else: print(mess)

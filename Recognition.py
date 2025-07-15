@@ -1,5 +1,6 @@
 from transformers import TrOCRProcessor, VisionEncoderDecoderModel
 import cv2, torch, re, time, easyocr, os, random
+from difflib import SequenceMatcher
 from ultralytics import YOLO
 from PIL import Image
 import numpy as np
@@ -13,7 +14,7 @@ class Record:
         if pathModel is not None:
             self.model = YOLO(pathModel)
         else:
-            self.modelDetect = YOLO(r"files/model.pt")
+            self.modelDetect = YOLO(r"files/model v2.pt")
 
         # Подключаем модель распознавания текста
         if pathOCR is not None:
@@ -37,7 +38,7 @@ class Record:
 
 
     # Поиск маркировки и выделение зоны интереса
-    def MarkerDetect(self, input):
+    def MarkerDetectYOLO(self, input):
 
         # Переводим в серый и размываем
         Part1 = cv2.cvtColor(input, cv2.COLOR_BGR2GRAY)
@@ -89,7 +90,7 @@ class Record:
 
         return True, Part13
 
-    # Расшифровка маркировки
+    # Расшифровка маркировки base_ocr
     def MarkerRecordBase_ru(self, input):
         # Переводим картинку в формат RGB
         Part1 = cv2.cvtColor(input, cv2.COLOR_BGR2RGB)
@@ -108,67 +109,144 @@ class Record:
             )
             text = self.processor.batch_decode(generated_ids, skip_special_tokens=True)[0]
 
-        # Структурируем полученый текст
-        marker = self.StrictText(text)
+        return True, text
 
-        return True, {"text": text, "marker": marker}
-
-
-    # Структурирование текста
-    def StrictText(self, text):
-
-        # Маска для структурирования
-        text = re.sub(r"[^A-Za-zА-Яа-я0-9]", "", text).upper()
-
-
-        # Функция струтурирования
-        def stricting(text, check, count, offset):
-            result, i = '', offset
-            while i < len(text) and len(result) < count:
-                if check(text[i]):
-                    result += text[i]
-                i += 1
-            return result, i
-
-        # Структурируем
-        pos = 0
-        part1, pos = stricting(text, str.isalpha, 3, pos)  # Производитель
-        part2, pos = stricting(text, str.isalpha, 4, pos)  # Завод
-        part3, pos = stricting(text, str.isdigit, 2, pos)  # Процент углерода
-        part4, pos = stricting(text, str.isalpha, 1, pos)  # Добавочный металл
-        part5, pos = stricting(text, str.isdigit, 1, pos)  # Процентное содержание добавочного металла
-        part6, pos = stricting(text, str.isdigit, 5, pos)  # Номер
-
-        return f"{part1} {part2} {part3}{part4}{part5} {part6}"
-
-
+    # Расшифровка маркировки easy_OCR
     def MarkerRecordEasy_ocr(self, input):
 
+        # Создаем имя временного файла
         name = f"temp_{random.randint(10000,99999)}.jpg"
 
+        # Сохраняем временый файл
         cv2.imwrite(name, input)
 
+        # Распознаем текст
         result = self.modelRecordEasy_ocr.readtext(name, detail=0)
 
+        # Объединяем результаты распознования
+        text=""
+        for i in result: text += i
+
+        # Удаляем временый файл
         os.remove(name)
 
-        return {"text": result, "marker": result}
+        return text
+
+    # Структурирование текста
+    def StrictText(self, text, structure):
+
+        # Удаляем все пробелы из входного текста для унификации
+        clean_text = re.sub(r'\s+', '', text)
+
+        # Проверяем наличие обязательных частей
+        required_parts = [structure["company"], structure["factory"]]
+
+        # Проверяем, есть ли обязательные части в тексте
+        for part in required_parts:
+            if part not in clean_text:
+                # Если обязательная часть отсутствует, пытаемся найти похожую
+                matches = self.find_similar_substring(clean_text, part)
+                if matches:
+                    # Заменяем наиболее похожую часть на правильную
+                    best_match = max(matches, key=lambda x: x[1])
+                    clean_text = clean_text.replace(best_match[0], part)
+                else:
+                    # Если похожей части нет, вставляем правильную
+                    clean_text = part + clean_text
+
+        # Ищем марку стали
+        num = "(.{2,10})"
+        steel_pattern = eval(f"r'{structure["factory"]}{num}'")
+        steel_match = re.search(steel_pattern, clean_text)
+
+        if steel_match:
+            steel_part = steel_match.group(1)
+            # Оставляем только допустимые символы в марке стали
+            cleaned_steel = re.sub(r'[^a-zA-Zа-яА-Я0-9-]', '', steel_part)
+            # Проверяем, соответствует ли очищенная марка стали допустимым значениям
+            valid_steel = self.validate_steel_grade(cleaned_steel, structure["steel"])
+        else:
+            valid_steel = structure["steel"]
+
+        # Ищем номер трубы
+        pipe_number = self.find_pipe_number(clean_text)
+        if pipe_number == "eeeee": return False, {"error_code":"002", "error":"Unable to find pipe number"}
+
+        # Собираем корректную маркировку
+        corrected = f"{structure["company"]} {structure["factory"]} {valid_steel} {pipe_number}"
+
+        return True, corrected
+
+    # Поиск целевого значения в тексте
+    def find_similar_substring(self, text, target):
+        matches = []
+        target_len = len(target)
+
+        # Проверяем все подстроки аналогичной длины
+        for i in range(len(text) - target_len + 1):
+            substring = text[i:i + target_len]
+            similarity = SequenceMatcher(None, substring, target).ratio()
+            if similarity > 0.6:  # Порог схожести
+                matches.append((substring, similarity))
+
+        return matches
+
+    # Проверка и корректировка марки стали
+    def validate_steel_grade(self, steel_text, default_grade):
+
+        steel_text = steel_text.replace(' ', '')
+        valid_grades = [
+            '30Г2', '20Mn5', '20MnB4', '20MnCr5',
+            '20MnCrS5', '20MnMoNi4-5', '36NiCrMo16'
+        ]
+
+        # Проверяем точное соответствие
+        if steel_text in valid_grades:
+            return steel_text
+
+        # Ищем похожие марки
+        for grade in valid_grades:
+            if SequenceMatcher(None, steel_text, grade).ratio() > 0.7:
+                return grade
+
+        # Если ничего не найдено, возвращаем марку по умолчанию
+        return default_grade
+
+    # Поиск 5-значного номера трубы
+    def find_pipe_number(self, text):
+
+        # Сначала ищем в конце строки
+        end_match = re.search(r'(\d{5})\D*$', text)
+        if end_match:
+            return end_match.group(1)
+
+        # Если не нашли в конце, ищем в любом месте
+        any_match = re.search(r'(\d{5})', text)
+        if any_match:
+            return any_match.group(1)
+
+        # Если номер не найден, возвращаем заглушку
+        return 'eeeee'
 
     # Функция обработчик
-    def __call__(self, input, numModel):
+    def __call__(self, input, numModel, structure={"company": "ТМК", "factory": "ЧТПЗ", "steel": "30Г2"}):
 
         # Запоминаем время начала обработки
         TimePoint = time.time()
 
         # Ищем и подготавливаем маркировку
-        status, zone = self.MarkerDetect(input)
+        status, zone = self.MarkerDetectYOLO(input)
         if status == False: return False, zone, None, None, None
 
         # Распознаём маркировку
         if numModel == 0:
-            status, data = self.MarkerRecordBase_ru(zone)
-            if status == False: return False, data, None, None, None
+            status, text = self.MarkerRecordBase_ru(zone)
+            if status == False: return False, text, None, None, None
         elif numModel == 1:
-            data = self.MarkerRecordEasy_ocr(zone)
+            text = self.MarkerRecordEasy_ocr(zone)
 
-        return True, zone, data["text"], data["marker"], round(time.time()-TimePoint, 3)
+        # Структурируем текст
+        status, marker = self.StrictText(text, structure)
+        if status == False: return False, marker, None, None, None
+
+        return True, zone, text, marker, round(time.time()-TimePoint, 3)
