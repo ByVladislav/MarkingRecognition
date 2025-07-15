@@ -57,6 +57,7 @@ pip install -r requirements.txt
 ---
 
 Установить trocr-base-ru, по путю MarkingRecognition/files/trocr-base-ru
+
 Ссылка на репозиторий: https://huggingface.co/raxtemur/trocr-base-ru/tree/main
 
 ---
