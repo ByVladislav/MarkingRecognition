@@ -1,0 +1,9 @@
+{
+  "top_percent": 0.45,
+  "bottom_percent": 0.35,
+  "height": 75,
+  "Significance": 0.5,
+  "BestScore": 0.6,
+  "path_YOLO": "files/model v2.pt",
+  "path_TROCR": "files/trocr-base-ru"
+}
