@@ -6,6 +6,7 @@ from Recognition import Record
 
 size = [1000, 800]
 CameraIndex = 0
+pipe_numbers = ["91458","23964","96859","25890","12670"]
 
 
 def ImgOnBoard(input):
@@ -28,7 +29,7 @@ def ImgOnBoard(input):
     return black_background
 
 
-record = Record(0.4, 0.3)
+record = Record(r"files/settings v.2.json")
 
 cap = cv2.VideoCapture(CameraIndex)
 plt.ion()  # Режим интерактивного обновления
@@ -44,21 +45,37 @@ try:
             break
 
         # Обрабатываем маркировку
-        status, mess, text, marker, timer, pred, corrected = record(frame, 1)
-        if status == False:
-            print("Error: ", mess)
-            out = ImgOnBoard(pred)
+        status, mess, text, marker, timer, previously, markers, logs, adjustments = record(frame, 1, pipe_numbers)
+        # Выводим результат
+        if status:
+            print('--------------------------')
+
+            # Результат работы
+            print(text, " to ", marker)
+            print('--------------------------')
+
+            # Время выполнения
+            print(timer, " sec.")
+            print('--------------------------')
+
+            # Отображение логов программы
+            if logs != {} or adjustments != None:
+                if logs != {}: print("Notes: ", logs)
+                if adjustments != None: print(adjustments)
+                print('--------------------------')
+
+            # Вывод списка возможных вариантов
+            if len(markers) > 1:
+                print("List of options")
+                for i in markers: print(i)
+                print('--------------------------')
+
+            # Итоговое изображение
+            zone = cv2.cvtColor(mess, cv2.COLOR_GRAY2BGR)
+            out = ImgOnBoard(zone)
         else:
-            print(); print(); print()
-            print("Найдено ", marker)
-            print("Распознано за ", timer, " сек.")
-            if corrected != dict():
-                print("Сырой текст: ", text)
-                print("Были выпаленный замены: ", corrected)
-                zone = cv2.cvtColor(mess, cv2.COLOR_GRAY2BGR)
-                out = ImgOnBoard(zone)
-            else:
-                out = ImgOnBoard(pred)
+            print("Error: ", mess)
+            out = ImgOnBoard(previously)
 
 
         frame_rgb = cv2.cvtColor(out, cv2.COLOR_BGR2RGB)
