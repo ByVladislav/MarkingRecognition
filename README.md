@@ -41,24 +41,26 @@
 ---
 
 Библиотека принимает на вход:
-* top - Процент обрезки по вверху 0-1
-* bottom - Процент обрезки по низу 0-1
-* pathModel - Путь до YOLO модели, изначально files/model v2.pt
-* pathOCR - Путь до base_ocr, изначально files/trocr-base-ru
+* path - Путь до файла *.json с настройками
 
 ```
-record = Record(0.45, 0.35) # Сокращёное применение
-record = Record(0.45, 0.35, r"files/model v2.pt", r"files/trocr-base-ru") # Полное применение
+record = Record() # Установление базового файла files/settings.json
+record = Record(r"mysettings.json") # Установка своих настроек
 ```
 
 ---
 
 Главная функция принимает:
 * input - Входное изображение
-* numModel - Номер модели 0: base_ru 1: easy_ocr 
+* numModel - Номер модели 0: base_ru 1: easy_ocr
+* pipe_numbers - Список возможных номеров труб (опционно)
 * structure - Описание того что должно присутствовать на маркировке, пример {"company": "ТМК", "factory": "ЧТПЗ", "steel": "30Г2"}
 
-```status, mess, text, marker, timer, pred, corrected = record(frame, 0)```
+```
+status, mess, text, marker, timer, previously, markers, logs, adjustments = record(img, 1)
+status, mess, text, marker, timer, previously, markers, logs, adjustments = record(img, 0, ['01693', '01699', '02691', '51691', '52691'])
+status, mess, text, marker, timer, previously, markers, logs, adjustments = record(img, 1, ['01693', '01699', '02691', '51691', '52691'], {"company": "ТМК", "factory": "ЧТПЗ", "steel": "30Г2", "number": 5})
+```
 
 ---
 
@@ -72,19 +74,45 @@ from Recognition import Record
 import cv2
 
 # Инициализируем декодер
-record = Record(0.45, 0.35)
+record = Record()
 
 # Открываем изображение
 img = cv2.imread("img.jpg")
 
 # Обрабатываем маркировку
-status, mess, _, marker, timer, _, _ = record(img, 0)
+status, mess, text, marker, timer, previously, markers, logs, adjustments = record(img, 1, ['01693', '01699', '02691', '51691', '52691'])
+
+# Подготовленое изображение
+cv2.imwrite("1.jpg", previously)
 
 # Выводим результат
 if status:
-    print(marker)
-    print(timer, " сек.")
-else: print(mess)
+    print('--------------------------')
+
+    # Результат работы
+    print(text, " to ", marker)
+    print('--------------------------')
+
+    # Время выполнения
+    print(timer, " sec.")
+    print('--------------------------')
+
+    # Отображение логов программы
+    if logs != {} or adjustments != None:
+        if logs != {}: print("Notes: ", logs)
+        if adjustments != None: print(adjustments)
+        print('--------------------------')
+
+    # Вывод списка возможных вариантов
+    if len(markers) > 1:
+        print("List of options")
+        for i in markers: print(i)
+        print('--------------------------')
+
+    # Итоговое изображение
+    cv2.imwrite("2.jpg", mess)
+else:
+    print(mess)
 ```
 
 ---
