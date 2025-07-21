@@ -146,5 +146,6 @@ pip install -r requirements.txt
 * ```{"error_code":"001", "error":"Not detecting marking"}``` - Обозначение того что модель YOLO не нашла рамку
 * ```{"error_code":"002", "error":"Unable to find pipe number"}``` - Обозначает то что при структурировании текста не удалось найти номер трубы
 * ```{'error_code': '003', 'error': ['Adding ТМК', 'Correction factory: ТПЗ->ЧТПЗ]}``` - Обозначает вывод логов при структурировании текста
+* ```{"error_code": "004", "error": "Unable to accurately determine the room number"}``` - Обозначает сообщение о том что не удалось точно распознать ноиер маркировки, и необходимо самостоятельно по представленому списку выбрать
 
 ---
