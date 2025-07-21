@@ -144,6 +144,30 @@ pip install -r requirements.txt
 <a id="settings"></a>
 # ⚙️ Настройки
 
+В настройку входит 7 параметров:
+1. top_percent - Процент обрезки сверхк
+2. bottom_percent - Процент обрезки снизу
+3. height - Высота кадра после фильтрации (уменьшение размера сглаживает разрывы между линиями букв)
+4. Significance - Порог совпадение для включения в спискок похожих маркировок
+5. BestScore - Порог фильтрации идеального (конечного) результата
+6. path_YOLO - Путь до YOLO модели
+7. path_TROCR - Путь до модели распознования текста TrOCR
+
+---
+
+Пример файла настроек:
+```
+{
+  "top_percent": 0.45,
+  "bottom_percent": 0.35,
+  "height": 75,
+  "Significance": 0.5,
+  "BestScore": 0.6,
+  "path_YOLO": "files/model v1.pt",
+  "path_TROCR": "files/trocr-base-ru"
+}
+```
+
 ---
 
 <a id="error"></a>
