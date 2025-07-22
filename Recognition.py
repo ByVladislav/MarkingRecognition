@@ -232,7 +232,7 @@ class Record:
         # Определяем лучший номер
         pipe_number = self._select_best_pipe_number(pipe_numbers, structure["number"], clean_text)
         if pipe_number == None:
-            corrected = f"{structure['company']} {structure['factory']} {valid_steel} {pipe_numbers[0]}"
+            corrected = f"{structure['company']} {structure['factory']} {valid_steel} {pipe_numbers[0][0]}"
             return True, {"error_code": "004", "error": "Unable to accurately determine the room number"}, corrected, pipe_numbers, mess
 
         # Собираем корректную маркировку
